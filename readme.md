@@ -1,8 +1,4 @@
-Here’s a well-structured `README.md` for your fraud detection project repository:
 
----
-
-```markdown
 # 🛡️ Online Transaction Fraud Detection System
 
 This project is a machine learning pipeline designed to detect fraudulent online financial transactions using real-world-like synthetic data. It leverages supervised learning models and model explainability tools to build a robust fraud detection system.
