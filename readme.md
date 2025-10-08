@@ -95,7 +95,7 @@ SHAP analysis confirms that **transaction type**, **sender balance**, and **tran
 
 ![SHAP Summary](./output/shap_summary.png)
 
-> Low sender balances and CASH_OUT/TRANSFER transaction types are the strongest indicators of fraud.
+> Low sender balances and large amount CASH_OUT/TRANSFER transaction types are the strongest indicators of fraud.
 
 ---
 
