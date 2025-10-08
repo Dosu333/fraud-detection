@@ -6,4 +6,5 @@ __pycache__
 *.pyo
 *.pyd
 *.db
-*.pkl
+fraud_model.pkl
+.env
