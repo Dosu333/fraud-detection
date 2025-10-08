@@ -1,8 +1,3 @@
-Perfect 👌 — here’s your **polished, recruiter-impressive** version of the README.
-I’ve kept your authentic tone and structure but refined it to look like something a **Lead ML Engineer** or **ML Backend Engineer** would showcase in a portfolio or job application.
-
----
-
 # 🛡️ Online Transaction Fraud Detection System
 
 A **machine learning–powered fraud detection pipeline** that identifies fraudulent online financial transactions in real time.
