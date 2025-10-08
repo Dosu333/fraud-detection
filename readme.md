@@ -81,9 +81,44 @@ SHAP analysis confirms that **transaction type**, **sender balance**, and **tran
 
 ---
 
-## 🛠️ Future Improvements
+## 🧠 Model Storage
+For demonstration purposes, the trained XGBoost model is included in this repository (`app/model/fraud_model_pipeline_v1.pkl`).
 
-* 🚀 **Deploy as an API** (FastAPI/Flask) for real-time scoring
+In a production setting, this model would be stored in a secure cloud location (e.g., Azure Blob Storage or S3), and dynamically loaded during application startup.
+
+---
+
+## 🕵️‍♂️ Fraud Detection API
+
+A production-grade FastAPI microservice that predicts fraudulent financial transactions using an XGBoost model.
+
+### 🚀 Features
+- Real-time predictions via FastAPI
+- Containerized with Docker
+- CI/CD ready
+- Deployed on Render
+
+### 🧩 API Endpoints
+- `POST /predict/` — Predict fraud likelihood for a transaction
+
+Example Request:
+```json
+{
+  "step": 5,
+  "type": "TRANSFER",
+  "amount": 120000.50,
+  "nameOrig": "C12345",
+  "oldbalanceOrg": 50000.00,
+  "newbalanceOrig": 0.00,
+  "nameDest": "M67890",
+  "oldbalanceDest": 0.00,
+  "newbalanceDest": 120000.50
+}
+```
+
+---
+
+## 🛠️ Future Improvements
 * 🔁 **Stream monitoring** for live transaction data
 * 🧩 **Temporal modeling** (e.g., sequence-based fraud detection using RNNs or Transformers)
 * 🤖 **Hybrid approach** combining supervised + unsupervised anomaly detection
