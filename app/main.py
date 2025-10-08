@@ -10,7 +10,22 @@ import os
 # Load .env
 load_dotenv()
 
-app = FastAPI()
+from fastapi import FastAPI
+
+app = FastAPI(
+    title="Online Fraud Detection API",   
+    description="This API detects fraudulent transactions using a machine learning model.",
+    version="1.0.0",
+    contact={
+        "name": "Oladosu Larinde",
+        "email": "larindeakin@gmail.com",
+    },
+    license_info={
+        "name": "MIT",
+        "url": "https://opensource.org/licenses/MIT"
+    }
+)
+
 
 @app.on_event("startup")
 def load_model():

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request
-from app.models import Transaction
+from app.models import Transaction, FraudPredictionResponse
 from app.logger import logger
 import pandas as pd
 import time
@@ -11,8 +11,21 @@ router = APIRouter()
 def root():
     return {"message": "Fraud detection API is running."}
 
-@router.post("/predict/")
+@router.post(
+    "/predict/", 
+    summary="Predict fraud", 
+    description="This endpoint takes transaction data and predicts whether it is fraudulent.",
+    response_model=FraudPredictionResponse
+)
 def predict(request: Request, input_data: Transaction):
+    """
+    ### Predict Fraud
+    - **transaction**: JSON object containing transaction details
+    - **Returns**: {
+        prediction: bool
+        fraud_probability: float
+    }
+    """
     start_time = time.time()
     model = request.app.state.model
     df = pd.DataFrame([input_data.dict()])
@@ -24,8 +37,8 @@ def predict(request: Request, input_data: Transaction):
         f"Prediction completed in {elapsed}s | Fraud Probability: {prob:.4f} | Prediction: {bool(prediction)}"
     )
 
-    return {
-        "prediction": bool(prediction),
-        "fraud_probability": float(round(prob, 4)),
-        "processing_time": elapsed,
-    }
+    return FraudPredictionResponse(
+        prediction=bool(prediction),
+        fraud_probability=float(round(prob, 4)),
+        processing_time=elapsed,
+    )

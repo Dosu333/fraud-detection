@@ -173,7 +173,7 @@ Then visit 👉 [http://localhost:8000/docs](http://localhost:8000/docs)
 ```json
 {
   "prediction": true,
-  "fraud_probability": 88.82
+  "fraud_probability": 0.8882
 }
 ```
 
