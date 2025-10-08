@@ -1,106 +1,110 @@
-
 # 🛡️ Online Transaction Fraud Detection System
 
-This project is a machine learning pipeline designed to detect fraudulent online financial transactions using real-world-like synthetic data. It leverages supervised learning models and model explainability tools to build a robust fraud detection system.
-
-## 📂 Project Structure
-
-```
-
-fraud-detection/
-├── data/                  # Raw and preprocessed data
-├── notebooks/             # Jupyter notebooks for EDA, training, tuning, SHAP analysis
-├── outputs/               # Plots, metrics reports, etc.
-├── requirements.txt       # Python dependencies
-└── README.md              # Project documentation
-
-````
-
-## 📊 Dataset
-
-The dataset contains the following features:
-
-- `step`: Time unit (1 step = 1 hour)
-- `type`: Type of transaction (TRANSFER, CASH_OUT, etc.)
-- `amount`: Transaction amount
-- `nameOrig` / `nameDest`: Originator / recipient
-- `oldbalanceOrg` / `newbalanceOrig`: Sender’s balance before/after
-- `oldbalanceDest` / `newbalanceDest`: Receiver’s balance before/after
-- `isFraud`: 1 if the transaction is fraudulent, 0 otherwise
-
-Additional engineered features include:
-- `balanceDiffOrig`, `balanceDiffDest`
-- `orig_balance_ratio`, `dest_balance_ratio`
-- One-hot encoded `type_*`
-
-## ⚙️ How It Works
-
-1. **Data Preprocessing**  
-   - Handled missing values, created balance ratios, and encoded categorical variables.
-   - Resampled data using techniques like SMOTE due to class imbalance.
-
-2. **Model Training**  
-   - Trained using models such as:
-     - Random Forest
-     - XGBoost (best performance)
-   - Evaluated with metrics like Precision, Recall, F1, ROC-AUC.
-
-3. **Cross-Validation & Hyperparameter Tuning**  
-   - Used `RandomizedSearchCV` for tuning
-   - Cross-validation confirmed model robustness
-
-4. **Model Explainability (SHAP)**  
-   - Global: SHAP summary plot shows most impactful features
-   - Local: (Optional) Force plots and waterfall plots for individual transactions
-
-## ✅ Results
-
-- Best ROC-AUC Score: **0.983**
-- Precision (fraud): **0.65–0.83**
-- Recall (fraud): **0.71–0.79**
-- Accuracy: ~**100%**, but with caution due to class imbalance
-
-## 🧠 Key Learnings
-
-- Fraud detection is highly imbalanced → evaluation must go beyond accuracy
-- SHAP helps demystify how models make decisions
-- Transaction type and balance changes are critical fraud indicators
-
-## 🚀 Getting Started
-
-### Requirements
-
-Install dependencies with:
-
-```bash
-pip install -r requirements.txt
-````
-
-### Run Notebook
-
-1. Launch Jupyter Notebook:
-
-   ```bash
-   jupyter notebook
-   ```
-2. Open `notebooks/preprocessing.ipynb` (or your main notebook)
-3. Run cells step-by-step
-4. Open `notebooks/models.ipynb`
-5. Run cells step-by-step
-
-## 🛠️ Future Improvements
-
-* Deploy as a web API (e.g., using FastAPI or Flask)
-* Monitor real-time transactions
-* Incorporate temporal features like transaction history windows
-* Use anomaly detection methods as unsupervised fallback
-
-## 📸 Sample SHAP Plot
-
-![SHAP Summary](output/shap_summary.png)
+A **machine learning–powered fraud detection pipeline** designed to identify fraudulent online financial transactions in real time.
+The project uses supervised learning and model interpretability techniques to build a transparent, high-performing fraud detection system on a realistic, synthetic dataset.
 
 ---
 
-**Author**: Oladosu Larinde
-**Contact**: [LinkedIn](https://www.linkedin.com/in/olarindeladosu) | [Email](mailto:larindeakin@gmail.com)
+## 📊 Dataset Overview
 
+The dataset simulates real-world financial transactions with the following key features:
+
+| Feature                            | Description                                         |
+| ---------------------------------- | --------------------------------------------------- |
+| `step`                             | Time step (1 step = 1 hour)                         |
+| `type`                             | Transaction type (TRANSFER, CASH_OUT, etc.)         |
+| `amount`                           | Transaction amount                                  |
+| `nameOrig`, `nameDest`             | Originator and recipient accounts                   |
+| `oldbalanceOrg`, `newbalanceOrig`  | Sender’s balance before and after the transaction   |
+| `oldbalanceDest`, `newbalanceDest` | Receiver’s balance before and after the transaction |
+| `isFraud`                          | Target variable (1 = fraud, 0 = non-fraud)          |
+
+**Engineered features:**
+
+* `balanceDiffOrig`, `balanceDiffDest` — change in sender/receiver balances
+* `orig_balance_ratio`, `dest_balance_ratio` — relative transaction amounts
+* One-hot encoded transaction types (e.g., `type_CASH_OUT`, `type_TRANSFER`)
+
+---
+
+## ⚙️ Workflow & Methodology
+
+### 1. **Data Preprocessing**
+
+* Cleaned and validated raw transaction data.
+* Engineered ratio-based and difference-based balance features.
+* Encoded categorical features using one-hot encoding.
+* Addressed severe class imbalance using **SMOTE** and stratified sampling.
+
+### 2. **Model Training**
+
+Multiple supervised learning algorithms were tested:
+
+* **Random Forest Classifier**
+* **XGBoost Classifier** *(best performer)*
+
+Models were trained to predict the `isFraud` label and evaluated on multiple metrics beyond accuracy.
+
+### 3. **Hyperparameter Tuning & Validation**
+
+* Optimized using `RandomizedSearchCV` and stratified cross-validation.
+* Ensured model robustness and generalization on unseen data.
+
+### 4. **Explainability with SHAP**
+
+* **Global interpretability:** SHAP summary plots identify which features drive fraud predictions most.
+* **Local interpretability:** Force and waterfall plots explain why *individual transactions* were flagged as fraud.
+
+---
+
+## ✅ Model Performance
+
+| Metric                        | Score                                      |
+| ----------------------------- | ------------------------------------------ |
+| **ROC-AUC**                   | **0.983**                                  |
+| **AUPRC (Average Precision)** | **0.8277**                                 |
+| **Precision (fraud)**         | 0.65–0.83                                  |
+| **Recall (fraud)**            | 0.71–0.79                                  |
+| **Accuracy**                  | ~100% *(not relied upon due to imbalance)* |
+
+🔍 **Interpretation:**
+Despite extreme class imbalance (<0.2% fraud rate), the model achieves *top-tier precision-recall balance* and excellent separability (ROC-AUC ≈ 0.98).
+SHAP analysis confirms that **transaction type**, **sender balance**, and **transaction amount** are the most predictive indicators of fraud.
+
+---
+
+## 🧠 Key Insights
+
+* **Accuracy ≠ performance** — Precision, Recall, AUPRC, and ROC-AUC are the real indicators in fraud detection.
+* **SHAP enhances trust** — Model interpretability is essential for explaining automated fraud flags.
+* **Behavioral patterns matter** — Features capturing balance dynamics and transaction types are most influential.
+
+---
+
+## 🛠️ Future Improvements
+
+* 🚀 **Deploy as an API** (FastAPI/Flask) for real-time scoring
+* 🔁 **Stream monitoring** for live transaction data
+* 🧩 **Temporal modeling** (e.g., sequence-based fraud detection using RNNs or Transformers)
+* 🤖 **Hybrid approach** combining supervised + unsupervised anomaly detection
+* 📈 **Model drift monitoring** to maintain long-term performance
+
+---
+
+## 📸 Sample SHAP Summary Plot
+
+![SHAP Summary](outputs/shap_summary.png)
+
+> Low sender balances and CASH_OUT/TRANSFER transaction types are the strongest indicators of fraud.
+
+---
+
+## 👨‍💻 Author
+
+**Oladosu Larinde**
+Lead Software Engineer | Machine Learning Enthusiast
+
+📫 **Contact**
+
+* [LinkedIn](https://www.linkedin.com/in/olarindeladosu)
+* [Email](mailto:larindeakin@gmail.com)
