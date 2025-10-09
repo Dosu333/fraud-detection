@@ -9,3 +9,4 @@ __pycache__
 fraud_model.pkl
 .env
 logs
+*/uploads
