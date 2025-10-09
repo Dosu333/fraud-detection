@@ -267,11 +267,18 @@ Poll this endpoint to check the status of a retraining task.
 
 ## 🛠️ Future Improvements
 
-* 🔁 **Live stream monitoring** for real-time transaction feeds
-* 🧩 **Temporal modeling** using RNNs or Transformers
-* 🤖 **Hybrid fraud detection** (supervised + unsupervised)
-* 📈 **Model drift monitoring** & automatic retraining
+* 🔁 **Live stream monitoring** for real-time transaction feeds  
+* 🧩 **Temporal modeling** using RNNs or Transformers  
+* 🤖 **Hybrid fraud detection** (supervised + unsupervised)  
+* 📈 **Model drift monitoring** & automatic retraining  
+* 🕒 **Time-based feature engineering** — Convert the `step` variable (which currently represents hours since dataset start) into interpretable temporal features such as:
+  * **Hour of day** (to capture fraud patterns during specific times)
+  * **Day of week** (to detect behavioral differences between weekdays and weekends)
+  * **Transaction recency** and **activity intervals** (for sequence-aware modeling)
+  
+  These derived features can significantly improve model performance by uncovering *periodic or behavioral fraud patterns* that a static “step” value cannot capture.
 * 🔒 **Centralized model registry** (AWS S3 / Azure Blob Storage)
+
 
 ---
 
