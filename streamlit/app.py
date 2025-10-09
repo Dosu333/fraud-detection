@@ -1,17 +1,18 @@
 import streamlit as st
 import pandas as pd
+from dotenv import load_dotenv
 import requests
 import time
-import os # 👈 New: Import the OS module
+import os
 
 # -------------------------------
-# ⚙️ Configuration
+# Configuration
 # -------------------------------
-# 1. Get API base URL from environment variable, defaulting to localhost if not set
-API_BASE_URL = os.environ.get("FRAUD_API_URL", "http://127.0.0.1:8000")
+load_dotenv()
+API_BASE_URL = os.getenv("FRAUD_API_URL")
 
 # -------------------------------
-# 🎨 Streamlit Page Configuration
+# Streamlit Page Configuration
 # -------------------------------
 st.set_page_config(
     page_title="Fraud Detection Dashboard",
@@ -21,7 +22,7 @@ st.set_page_config(
 )
 
 # -------------------------------
-# Custom Styling (Clean & Exotic)
+# Styling
 # -------------------------------
 st.markdown("""
     <style>
@@ -197,20 +198,51 @@ if page == "Predict Fraud":
 elif page == "Retrain Model":
     st.header("🧠 Retrain Model with New Data")
     st.info("Upload a new CSV file. The file should contain labeled data for retraining. This process runs asynchronously.")
-    
+
+    # ---------------------------------------------------
+    # Download Sample CSV
+    # ---------------------------------------------------
+    st.markdown("### 📄 Need a sample dataset?")
+    st.caption("Download a ready-made CSV with the correct columns and structure for model retraining.")
+
+    sample_data = pd.DataFrame({
+        "step": [1, 2],
+        "type": ["PAYMENT", "TRANSFER"],
+        "amount": [9839.64, 1864.28],
+        "nameOrig": ["C1231006815", "C1666544295"],
+        "oldbalanceOrg": [170136.0, 21249.0],
+        "newbalanceOrig": [160296.36, 19384.72],
+        "nameDest": ["M1979787155", "M2044282225"],
+        "oldbalanceDest": [0.0, 0.0],
+        "newbalanceDest": [0.0, 0.0],
+        "isFraud": [0, 1]
+    })
+
+    csv_bytes = sample_data.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        label="📥 Download Sample CSV",
+        data=csv_bytes,
+        file_name="sample_training_data.csv",
+        mime="text/csv"
+    )
+
+    st.markdown("---")
+
+    # ---------------------------------------------------
+    # Upload New Training Data
+    # ---------------------------------------------------
     csv_file = st.file_uploader("Upload Training Data CSV", type=["csv"])
 
     if csv_file is not None:
         if st.button("🚀 Start Retraining"):
             with st.spinner("Uploading file and starting retraining job..."):
                 try:
-                    # Requests library handles multipart/form-data for file uploads
                     files = {"file": (csv_file.name, csv_file, "text/csv")}
                     res = requests.post(f"{API_BASE_URL}/retrain/", files=files)
                     
-                    if res.status_code == 202: # 202 Accepted status for async job start
+                    if res.status_code == 202:
                         task_id = res.json().get("task_id")
-                        st.success(f"✅ Retraining started successfully!")
+                        st.success("✅ Retraining started successfully!")
                         st.markdown(f"**📍 Task ID:** `{task_id}`")
                         st.info("Navigate to 'Retrain Status' to track progress.")
                         st.session_state["last_task_id"] = task_id
