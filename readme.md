@@ -2,7 +2,7 @@
 
 A **machine learning–powered fraud detection pipeline** that identifies fraudulent online financial transactions in real time.
 
-This project demonstrates my ability to build a **complete end-to-end ML solution** — from data preprocessing and feature engineering to model training, explainability, and containerized deployment using FastAPI.
+This project demonstrates my ability to build a **complete end-to-end ML solution** — from data preprocessing and feature engineering to model training, explainability, and containerized deployment using FastAPI and Celery.
 
 ---
 
@@ -12,7 +12,8 @@ This project demonstrates my ability to build a **complete end-to-end ML solutio
 * **ML Framework:** XGBoost, scikit-learn, pandas, numpy
 * **Model Explainability:** SHAP
 * **Serialization:** Joblib
-* **Deployment:** Docker, Render
+* **Task Queue:** Celery, Redis, Flower
+* **Deployment:** Docker, Docker Compose, Render
 * **Version Control & CI/CD:** Git, GitHub Actions (ready for integration)
 
 ---
@@ -50,10 +51,10 @@ The dataset simulates real-world financial transactions with the following key f
 
 ### 2. **Model Training**
 
-Tested multiple supervised learning algorithms:
+* Tested multiple supervised learning algorithms:
 
-* Random Forest Classifier
-* **XGBoost Classifier** *(selected for best performance)*
+  * Random Forest Classifier
+  * **XGBoost Classifier** *(selected for best performance)*
 
 The final XGBoost model was trained to predict `isFraud` and evaluated using metrics optimized for imbalanced datasets.
 
@@ -100,12 +101,17 @@ fraud-detection/
 │   ├── main.py                # FastAPI entrypoint
 │   ├── endpoints.py           # API routes
 │   ├── preprocess.py          # Feature engineering pipeline
+│   ├── worker.py              # Celery configuration
+│   ├── tasks.py               # Model retraining task
 │   ├── model/
 │   │   └── fraud_model_pipeline_v1.pkl
 │   └── __init__.py
+├── logs/
+│   └── celery.log
 ├── notebooks/
 │   ├── preprocessing.ipynb
 │   └── models.ipynb
+├── docker-compose.yml
 ├── requirements.txt
 ├── Dockerfile
 ├── README.md
@@ -117,39 +123,63 @@ fraud-detection/
 
 ## 🕵️‍♂️ Fraud Detection API
 
-A production-ready **FastAPI** microservice for real-time fraud prediction.
-
-### 🚀 Features
-
-* Real-time prediction endpoint
-* Containerized with Docker
-* Logs model loading and prediction performance
-* Ready for CI/CD deployment on **Render**, **Azure**, or **AWS**
+A production-ready **FastAPI** microservice for real-time fraud prediction and background model retraining.
 
 ---
 
-### 🧭 Running Locally
+### 🚀 How to Run Locally
 
-**Option 1 – Docker**
-
-```bash
-docker compose up --build
-```
-
-**Option 2 – Manual**
+#### **Option 1 – Docker Compose (Recommended)**
 
 ```bash
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+docker-compose up --build
 ```
 
-Then visit 👉 [http://localhost:8000/docs](http://localhost:8000/docs)
+This starts:
+
+* FastAPI API service (port **8000**)
+* Redis broker (port **6379**)
+* Celery worker (background task processor)
+* Flower dashboard (port **5555**)
+
+Access:
+
+* **API Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
+* **Flower (Celery dashboard):** [http://localhost:5555](http://localhost:5555)
 
 ---
 
-### 🧩 API Endpoints
+#### **Option 2 – Manual Setup**
 
-#### `POST /predict/` — Predict fraud likelihood
+1. Start Redis locally:
+
+   ```bash
+   redis-server
+   ```
+
+2. Run Celery worker:
+
+   ```bash
+   celery -A app.worker.celery_app worker --loglevel=info
+   ```
+
+3. Start FastAPI app:
+
+   ```bash
+   uvicorn app.main:app --reload
+   ```
+
+4. (Optional) Start Flower:
+
+   ```bash
+   celery -A app.worker.celery_app flower --port=5555
+   ```
+
+---
+
+## 🧩 API Endpoints
+
+### **`POST /predict/` — Predict fraud likelihood**
 
 **Request**
 
@@ -178,34 +208,70 @@ Then visit 👉 [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ---
 
-## 🧠 Model Storage
+### **`POST /retrain/` — Trigger model retraining**
 
-For demonstration, the trained XGBoost pipeline is included in `app/model/fraud_model_pipeline_v1.pkl`.
+Triggers an asynchronous Celery task to retrain the fraud detection model using new data.
 
-In production, the model would be securely stored and versioned (e.g., in **Azure Blob Storage** or **AWS S3**) and automatically loaded during FastAPI startup.
+**Request**
+
+```json
+{
+  "new_data_path": "data/new_transactions.csv"
+}
+```
+
+**Response**
+
+```json
+{
+  "task_id": "e8b0f3c0-2b6a-4d2a-87cc-9b234e2c9f4b",
+  "message": "Model retraining started"
+}
+```
 
 ---
 
-### 🪶 Celery Logging & Monitoring
+### **`GET /retrain/status/{task_id}` — Check retraining status**
 
-- All background tasks (e.g., model retraining) are executed via Celery.
-- Task logs are captured in both the console and `logs/celery.log` using structured JSON format.
-- The system integrates with Flower for real-time monitoring of task states and performance.
+Poll this endpoint to check the status of a retraining task.
 
-Access Flower dashboard:  
-👉 **http://localhost:5555**
+**Response**
 
-Logs path:  
-`logs/celery.log`
+```json
+{
+  "task_id": "e8b0f3c0-2b6a-4d2a-87cc-9b234e2c9f4b",
+  "status": "SUCCESS",
+  "result": {
+    "status": "Model retrained successfully",
+    "data_size": 10000,
+    "validation_score": 0.9123,
+    "model_path": "app/model/fraud_model_pipeline_20251009_143200.pkl",
+  }
+}
+```
+
+---
+
+## 🪶 Celery Logging & Monitoring
+
+* Background tasks (e.g., retraining) are executed via **Celery**.
+* Logs are saved in both the console and `logs/celery.log` with **structured JSON format** (via `python-json-logger`).
+* **Flower** provides real-time task monitoring and inspection.
+
+**Access:**
+
+* Flower dashboard → [http://localhost:5555](http://localhost:5555)
+* Logs file → `logs/celery.log`
 
 ---
 
 ## 🛠️ Future Improvements
 
-* 🔁 **Stream monitoring** for live transaction feeds
+* 🔁 **Live stream monitoring** for real-time transaction feeds
 * 🧩 **Temporal modeling** using RNNs or Transformers
 * 🤖 **Hybrid fraud detection** (supervised + unsupervised)
-* 📈 **Model drift monitoring** & retraining automation
+* 📈 **Model drift monitoring** & automatic retraining
+* 🔒 **Centralized model registry** (AWS S3 / Azure Blob Storage)
 
 ---
 
