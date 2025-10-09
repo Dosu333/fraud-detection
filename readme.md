@@ -133,8 +133,7 @@ A production-ready **FastAPI** microservice for real-time fraud prediction.
 **Option 1 – Docker**
 
 ```bash
-docker build -t fraud-api .
-docker run -p 8000:8000 fraud-api
+docker compose up --build
 ```
 
 **Option 2 – Manual**
@@ -184,6 +183,20 @@ Then visit 👉 [http://localhost:8000/docs](http://localhost:8000/docs)
 For demonstration, the trained XGBoost pipeline is included in `app/model/fraud_model_pipeline_v1.pkl`.
 
 In production, the model would be securely stored and versioned (e.g., in **Azure Blob Storage** or **AWS S3**) and automatically loaded during FastAPI startup.
+
+---
+
+### 🪶 Celery Logging & Monitoring
+
+- All background tasks (e.g., model retraining) are executed via Celery.
+- Task logs are captured in both the console and `logs/celery.log` using structured JSON format.
+- The system integrates with Flower for real-time monitoring of task states and performance.
+
+Access Flower dashboard:  
+👉 **http://localhost:5555**
+
+Logs path:  
+`logs/celery.log`
 
 ---
 

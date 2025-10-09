@@ -1,0 +1,53 @@
+services:
+  api:
+    build: .
+    container_name: fraud_api
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+    env_file:
+      - ./.env
+    networks:
+      - fraud-api-network
+
+  celery:
+    build: .
+    container_name: fraud_worker
+    command: celery -A app.worker.celery_app worker --loglevel=info --logfile=logs/celery.log
+    depends_on:
+      - redis
+    env_file:
+      - ./.env
+    networks:
+      - fraud-api-network
+
+  redis:
+    image: bitnami/redis:latest
+    env_file:
+      - ./.env
+    ports:
+      - "6378:6378"
+    networks:
+      - fraud-api-network
+    restart: unless-stopped
+
+  flower:
+    image: mher/flower:latest
+    container_name: fraud_flower
+    command: celery --broker=${REDIS_URL} flower --port=5555
+    env_file:
+      - ./.env
+    ports:
+      - "5555:5555"
+    networks:
+      - fraud-api-network
+    depends_on:
+      - api
+      - redis
+      - celery
+    
+networks:
+  fraud-api-network:
+    driver: bridge
