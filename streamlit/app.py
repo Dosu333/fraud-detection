@@ -65,7 +65,6 @@ st.markdown("""
             border-radius: 10px;
             border: 1px solid #ccc;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            padding: 0.5rem;
         }
         
         /* Containers (Forms, Columns) for a Card Look */
