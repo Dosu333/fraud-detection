@@ -9,6 +9,8 @@ services:
       - redis
     env_file:
       - ./.env
+    volumes:
+      - ./:/app
     networks:
       - fraud-api-network
 
@@ -18,8 +20,11 @@ services:
     command: celery -A app.worker.celery_app worker --loglevel=info --logfile=logs/celery.log
     depends_on:
       - redis
+      - api
     env_file:
       - ./.env
+    volumes:
+      - ./:/app
     networks:
       - fraud-api-network
 
@@ -47,7 +52,7 @@ services:
       - api
       - redis
       - celery
-    
+
 networks:
   fraud-api-network:
     driver: bridge

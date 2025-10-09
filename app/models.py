@@ -37,14 +37,16 @@ class RetrainRequest(BaseModel):
         }
         
 class TriggerRetrainResponse(BaseModel):
+    status_code: int
     task_id: str
-    status: str
+    message: str
 
     class Config:
         schema_extra = {
             "example": {
+                "status_code": 202,
                 "task_id": "abc123xyz",
-                "status": "Retraining started"
+                "message": "Retraining started"
             }
         }
         

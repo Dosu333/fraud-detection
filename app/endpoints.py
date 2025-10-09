@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, BackgroundTasks, HTTPException
+from fastapi import APIRouter, Request, HTTPException, UploadFile, File, status
 from celery.result import AsyncResult
 from app.worker import celery_app
 from app.tasks import retrain_model
@@ -12,6 +12,8 @@ from app.models import (
 from app.logger import logger
 import pandas as pd
 import time
+import os
+import shutil
 
 
 router = APIRouter()
@@ -56,18 +58,30 @@ def predict(request: Request, input_data: Transaction):
     "/retrain/",
     summary="Trigger model retraining",
     description="This endpoint triggers background retraining of the fraud detection model using new data.",
-    response_model=TriggerRetrainResponse
+    response_model=TriggerRetrainResponse,
+    status_code=status.HTTP_202_ACCEPTED
 )
-def trigger_retraining(new_data_path: RetrainRequest):
-    """
-    Trigger background retraining using Celery.
-    Example: {"new_data_path": "data/new_transactions.csv"}
-    """
-    try:
-        task = retrain_model.delay(new_data_path)
-        return TriggerRetrainResponse(task_id=task.id, status="Retraining started")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+async def retrain_model(file: UploadFile = File(...)):
+    """Upload CSV and start background model retraining."""
+    if not file.filename.endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Only CSV files are allowed")
+
+    # Create an upload path
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    upload_dir = os.path.join(base_dir, "uploads")  
+    os.makedirs(upload_dir, exist_ok=True)
+
+    # Save uploaded file
+    file_path = os.path.join(upload_dir, file.filename)
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+        
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=500, detail="Failed to save uploaded file")
+
+    # Start Celery task
+    task = celery_app.send_task("app.tasks.retrain_model", args=[file_path])
+    return TriggerRetrainResponse(status_code=202, message="Retraining started", task_id=task.id)
 
 @router.get(
     "/retrain/status/{task_id}",

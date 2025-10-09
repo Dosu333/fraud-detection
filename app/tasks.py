@@ -13,8 +13,20 @@ def retrain_model(new_data_path: str):
     using new labeled transaction data.
     """
     try:
+        df = pd.read_csv(new_data_path)
+        required_cols = {
+            "step", "type", "amount", "oldbalanceOrg", "newbalanceOrig",
+            "oldbalanceDest", "newbalanceDest", "nameOrig", "nameDest", "isFraud"
+        }
+        if not required_cols.issubset(df.columns):
+            missing = required_cols - set(df.columns)
+            raise ValueError(f"Missing required columns: {missing}")
+        
         model_name = os.environ.get('MODEL_NAME')
-        MODEL_PATH = os.path.join(os.path.dirname(__file__), f"../model/{model_name}")
+        BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        MODEL_DIR = os.path.join(BASE_DIR, "model")
+        os.makedirs(MODEL_DIR, exist_ok=True)
+        MODEL_PATH = os.path.join(MODEL_DIR, model_name)
         if not os.path.exists(MODEL_PATH):
             raise FileNotFoundError(f"Model not found at {MODEL_PATH}")
 
@@ -22,8 +34,6 @@ def retrain_model(new_data_path: str):
 
         # Load new transaction data
         df = pd.read_csv(new_data_path)
-        if 'isFraud' not in df.columns:
-            raise ValueError("Data must contain 'isFraud' column for retraining")
 
         # Separate features and label
         X = df.drop(columns=["isFraud"])
@@ -40,7 +50,8 @@ def retrain_model(new_data_path: str):
 
         # Save updated pipeline with timestamped version
         new_model_name = f"fraud_model_pipeline_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pkl"
-        new_model_path = os.path.join("../model", new_model_name)
+        new_model_path = os.path.join(MODEL_DIR, new_model_name)
+
         joblib.dump(pipeline, new_model_path)
 
         return {
