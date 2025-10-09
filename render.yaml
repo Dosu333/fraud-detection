@@ -4,11 +4,6 @@ services:
     env: docker
     plan: free
     envVars:
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: redis
-          property: connectionString
       - key: SERVICE_TYPE
         value: api
 
@@ -17,14 +12,13 @@ services:
     env: docker
     plan: free
     envVars:
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: redis
-          property: connectionString
       - key: SERVICE_TYPE
         value: worker
 
-  - type: redis
-    name: redis
-    ipAllowList: []
+  - type: web
+    name: fraud-flower
+    env: docker
+    plan: free
+    envVars:
+      - key: SERVICE_TYPE
+        value: flower
