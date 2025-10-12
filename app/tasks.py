@@ -1,4 +1,3 @@
-# app/tasks/retrain_model.py
 from app.worker import celery_app
 import joblib
 import pandas as pd
