@@ -37,8 +37,10 @@ def load_models():
         raise ValueError("Model URLs are not set in environment variables.")
     iso_response = requests.get(ISO_URL)
     xgb_response = requests.get(XGB_URL)
-    iso = joblib.load(BytesIO(iso_response.content))
-    xgb = joblib.load(BytesIO(xgb_response.content))
+    iso = iso_response
+    xgb = xgb_response
+    # iso = joblib.load(BytesIO(iso_response.content))
+    # xgb = joblib.load(BytesIO(xgb_response.content))
     with open("feature_order.json") as f:
         feature_order = json.load(f)
     return iso, xgb, feature_order
