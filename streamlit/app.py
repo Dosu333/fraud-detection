@@ -4,6 +4,7 @@ import joblib
 import pandas as pd
 from dotenv import load_dotenv
 from preprocess import FeatureEngineer
+from data_store import get_initial_customer_db
 import streamlit as st
 
 
@@ -68,23 +69,7 @@ with tab1:
 
     # --- Initialize session state database ---
     if "CUSTOMER_DB" not in st.session_state:
-        st.session_state.CUSTOMER_DB = {
-            "user_001": {
-                "balance": 5000,
-                "avgDailyVolumeSoFar": 2000,
-                "totalTransactions": 10,
-            },
-            "user_002": {
-                "balance": 12000,
-                "avgDailyVolumeSoFar": 8000,
-                "totalTransactions": 2,
-            },
-            "user_003": {
-                "balance": 700,
-                "avgDailyVolumeSoFar": 300,
-                "totalTransactions": 0,
-            },
-        }
+        st.session_state.CUSTOMER_DB = get_initial_customer_db()
 
     if "TRANSACTION_HISTORY" not in st.session_state:
         st.session_state.TRANSACTION_HISTORY = []
