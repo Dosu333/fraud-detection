@@ -27,8 +27,7 @@ app = FastAPI(
 def load_model():
     start_time = time.time()
     model_name = os.environ.get("MODEL_NAME")
-    MODEL_PATH = os.path.join(
-        os.path.dirname(__file__), f"../model/{model_name}")
+    MODEL_PATH = os.path.join(os.path.dirname(__file__), f"../model/{model_name}")
     app.state.model = joblib.load(MODEL_PATH)
     elapsed = round(time.time() - start_time, 2)
     logger.info(f"✅ Model loaded successfully in {elapsed}s")

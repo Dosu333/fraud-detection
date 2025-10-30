@@ -12,6 +12,7 @@ class Transaction(BaseModel):
     oldbalanceDest: float
     newbalanceDest: float
 
+
 class FraudPredictionResponse(BaseModel):
     prediction: bool
     fraud_probability: float
@@ -22,20 +23,18 @@ class FraudPredictionResponse(BaseModel):
             "example": {
                 "prediction": True,
                 "fraud_probability": 0.8734,
-                "processing_time": 0.024
+                "processing_time": 0.024,
             }
         }
-        
+
+
 class RetrainRequest(BaseModel):
     new_data_path: str
 
     class Config:
-        schema_extra = {
-            "example": {
-                "new_data_path": "data/new_transactions.csv"
-            }
-        }
-        
+        schema_extra = {"example": {"new_data_path": "data/new_transactions.csv"}}
+
+
 class TriggerRetrainResponse(BaseModel):
     status_code: int
     task_id: str
@@ -46,10 +45,11 @@ class TriggerRetrainResponse(BaseModel):
             "example": {
                 "status_code": 202,
                 "task_id": "abc123xyz",
-                "message": "Retraining started"
+                "message": "Retraining started",
             }
         }
-        
+
+
 class RetrainStatusResponse(BaseModel):
     task_id: str
     status: str
@@ -65,7 +65,7 @@ class RetrainStatusResponse(BaseModel):
                     "status": "Model retrained successfully",
                     "data_size": 10000,
                     "validation_score": 0.95,
-                    "model_path": "model/fraud_model_pipeline_20231010_101010.pkl"
-                }
+                    "model_path": "model/fraud_model_pipeline.pkl",
+                },
             }
         }

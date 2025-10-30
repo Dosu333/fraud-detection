@@ -5,6 +5,7 @@ from sklearn.model_selection import train_test_split
 from datetime import datetime
 import os
 
+
 @celery_app.task
 def retrain_model(new_data_path: str):
     """
@@ -14,14 +15,22 @@ def retrain_model(new_data_path: str):
     try:
         df = pd.read_csv(new_data_path)
         required_cols = {
-            "step", "type", "amount", "oldbalanceOrg", "newbalanceOrig",
-            "oldbalanceDest", "newbalanceDest", "nameOrig", "nameDest", "isFraud"
+            "step",
+            "type",
+            "amount",
+            "oldbalanceOrg",
+            "newbalanceOrig",
+            "oldbalanceDest",
+            "newbalanceDest",
+            "nameOrig",
+            "nameDest",
+            "isFraud",
         }
         if not required_cols.issubset(df.columns):
             missing = required_cols - set(df.columns)
             raise ValueError(f"Missing required columns: {missing}")
-        
-        model_name = os.environ.get('MODEL_NAME')
+
+        model_name = os.environ.get("MODEL_NAME")
         BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         MODEL_DIR = os.path.join(BASE_DIR, "model")
         os.makedirs(MODEL_DIR, exist_ok=True)
@@ -39,7 +48,9 @@ def retrain_model(new_data_path: str):
         y = df["isFraud"]
 
         # Split for training/testing
-        X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+        X_train, X_val, y_train, y_val = train_test_split(
+            X, y, test_size=0.2, random_state=42
+        )
 
         # Retrain the pipeline
         pipeline.fit(X_train, y_train)
@@ -48,7 +59,10 @@ def retrain_model(new_data_path: str):
         score = pipeline.score(X_val, y_val)
 
         # Save updated pipeline with timestamped version
-        new_model_name = f"fraud_model_pipeline_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pkl"
+        today = datetime.now().strftime('%Y%m%d_%H%M%S')
+        new_model_name = (
+            f"fraud_model_pipeline_{today}.pkl"
+        )
         new_model_path = os.path.join(MODEL_DIR, new_model_name)
 
         joblib.dump(pipeline, new_model_path)
