@@ -44,10 +44,8 @@ def load_models():
     return iso, xgb, feature_order
 
 
-iso, xgb, feature_order = load_models()
-
-
 def classify(df):
+    iso, xgb, feature_order = load_models()
     X_iso = df[[c for c in feature_order if c != "score_shifted"]].fillna(0)
     anomaly = -iso.decision_function(X_iso)
     df["score_shifted"] = anomaly - BEST_THRESH
