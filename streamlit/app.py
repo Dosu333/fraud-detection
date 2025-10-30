@@ -64,35 +64,130 @@ tab1, tab2 = st.tabs(["Single Transaction", "Batch Upload"])
 
 # -------- Single Transaction Mode --------
 with tab1:
-    st.subheader("Enter transaction details")
+    st.subheader("Simulate a Single Transaction")
 
-    amount = st.number_input("Amount", min_value=0.0, step=0.01)
-    oldbalance = st.number_input(
-        "Sender Balance Before Transaction", min_value=0.0, step=0.01
+    # --- Initialize session state database ---
+    if "CUSTOMER_DB" not in st.session_state:
+        st.session_state.CUSTOMER_DB = {
+            "user_001": {
+                "balance": 5000,
+                "avgDailyVolumeSoFar": 2000,
+                "totalTransactions": 10,
+            },
+            "user_002": {
+                "balance": 12000,
+                "avgDailyVolumeSoFar": 8000,
+                "totalTransactions": 2,
+            },
+            "user_003": {
+                "balance": 700,
+                "avgDailyVolumeSoFar": 300,
+                "totalTransactions": 0,
+            },
+        }
+
+    if "TRANSACTION_HISTORY" not in st.session_state:
+        st.session_state.TRANSACTION_HISTORY = []
+
+    CUSTOMER_DB = st.session_state.CUSTOMER_DB
+    HISTORY = st.session_state.TRANSACTION_HISTORY
+
+    # --- Inputs ---
+    sender_id = st.selectbox("Sender ID", options=list(CUSTOMER_DB.keys()))
+    receiver_id = st.text_input("Receiver ID (optional)")
+    txn_type = st.selectbox(
+        "Transaction Type", ["TRANSFER", "PAYMENT", "CASH_IN", "CASH_OUT"]
     )
-    avgVol = st.number_input("Avg Daily Volume (Past Days)",
-                             min_value=0.0, step=0.01)
+    amount = st.number_input("Amount", min_value=0.0, step=0.01)
+    timestamp = pd.Timestamp.now()
 
-    if st.button("Check Risk"):
-        single = pd.DataFrame(
-            [
-                {
-                    "amount": amount,
-                    "oldbalanceOrg": oldbalance,
-                    "avgDailyVolumeSoFar": avgVol,
-                    "avgDailyVolumeBeforeTxn": avgVol,
-                    "amountToAvgVolumeRatio": amount / (avgVol + 1e-6),
-                }
-            ]
+    # --- Display sender balance ---
+    sender_balance = CUSTOMER_DB[sender_id]["balance"]
+    st.info(f"💰 Current balance for {sender_id}: {sender_balance:,.2f}")
+
+    if st.button("🚀 Process Transaction"):
+        sender_data = CUSTOMER_DB[sender_id]
+        oldbalance = sender_data["balance"]
+        avg_vol = sender_data["avgDailyVolumeSoFar"]
+        is_first = sender_data["totalTransactions"] == 0
+
+        # --- Validate sufficient balance ---
+        if amount > oldbalance and txn_type != "CASH_IN":
+            st.error("❌ Insufficient balance for this transaction.")
+            st.stop()
+
+        # --- Compute features ---
+        data = {
+            "timestamp": timestamp,
+            "type": txn_type,
+            "amount": amount,
+            "oldbalanceOrg": oldbalance,
+            "avgDailyVolumeSoFar": avg_vol,
+            "avgDailyVolumeBeforeTxn": avg_vol,
+            "amountToAvgVolumeRatio": amount / (avg_vol + 1e-6),
+            "isFirstTransaction": is_first,
+        }
+
+        single = pd.DataFrame([data])
+
+        # --- Transform and classify ---
+        features = FeatureEngineer().transform(single)
+        result = classify(features)
+
+        # --- Update balances if allowed (simulate transaction effect) ---
+        decision = result["Decision"].iloc[0]
+        risk_score = result["Risk Score"].iloc[0]
+
+        if decision == "✅ ALLOW":
+            # Deduct from sender if not cash-in
+            if txn_type != "CASH_IN":
+                CUSTOMER_DB[sender_id]["balance"] = oldbalance - amount
+            else:
+                CUSTOMER_DB[sender_id]["balance"] = oldbalance + amount
+
+            # Increment transaction count
+            CUSTOMER_DB[sender_id]["totalTransactions"] += 1
+
+        # --- Log transaction ---
+        HISTORY.append(
+            {
+                "timestamp": timestamp,
+                "sender": sender_id,
+                "receiver": receiver_id,
+                "type": txn_type,
+                "amount": amount,
+                "oldbalanceOrg": oldbalance,
+                "newBalance": CUSTOMER_DB[sender_id]["balance"],
+                "Risk Score": risk_score,
+                "Decision": decision,
+            }
         )
 
-        single = FeatureEngineer().transform(single)
-        result = classify(single)
+        # --- Display results ---
+        st.markdown(f"### 🧠 Model Decision: {decision}")
+        st.metric("Predicted Fraud Probability", f"{risk_score:.2%}")
 
-        st.markdown(f"### Result: {result['Decision'].iloc[0]}")
+        with st.expander("🔍 Model Input"):
+            st.write(single)
 
-        with st.expander("Advanced Details"):
+        with st.expander("🧾 Model Output"):
             st.write(result)
+
+        with st.expander("💳 Updated Sender Info"):
+            st.write(CUSTOMER_DB[sender_id])
+
+    # --- Transaction History Section ---
+    if HISTORY:
+        st.markdown("### 📜 Transaction History (Session)")
+        hist_df = pd.DataFrame(HISTORY)
+        st.dataframe(hist_df.tail(10), use_container_width=True)
+
+        st.download_button(
+            "⬇️ Download Full History",
+            pd.DataFrame(HISTORY).to_csv(index=False).encode("utf-8"),
+            file_name="transaction_history.csv",
+            mime="text/csv",
+        )
 
 # -------- Batch Upload Mode --------
 with tab2:
