@@ -1,5 +1,4 @@
 import os
-import json
 import joblib
 import requests
 import pandas as pd
@@ -30,6 +29,21 @@ EXPECTED_COLUMNS = [
     "isFirstTransaction",
 ]
 
+feature_order = [
+    "amount",
+    "oldbalanceOrg",
+    "hourOfDay",
+    "dayOfMonth",
+    "isWeekend",
+    "avgDailyVolumeSoFar",
+    "avgDailyVolumeBeforeTxn",
+    "amountToAvgVolumeRatio",
+    "isFirstTransaction",
+    "type_CASH_OUT",
+    "type_TRANSFER",
+    "score_shifted"
+]
+
 
 @st.cache_resource
 def load_models():
@@ -37,17 +51,13 @@ def load_models():
         raise ValueError("Model URLs are not set in environment variables.")
     iso_response = requests.get(ISO_URL)
     xgb_response = requests.get(XGB_URL)
-    iso = iso_response
-    xgb = xgb_response
-    # iso = joblib.load(BytesIO(iso_response.content))
-    # xgb = joblib.load(BytesIO(xgb_response.content))
-    with open("feature_order.json") as f:
-        feature_order = json.load(f)
-    return iso, xgb, feature_order
+    iso = joblib.load(BytesIO(iso_response.content))
+    xgb = joblib.load(BytesIO(xgb_response.content))
+    return iso, xgb
 
 
 def classify(df):
-    iso, xgb, feature_order = load_models()
+    iso, xgb = load_models()
     X_iso = df[[c for c in feature_order if c != "score_shifted"]].fillna(0)
     anomaly = -iso.decision_function(X_iso)
     df["score_shifted"] = anomaly - BEST_THRESH
