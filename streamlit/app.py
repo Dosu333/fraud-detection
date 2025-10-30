@@ -1,308 +1,164 @@
-import streamlit as st
+import os
+import json
+import joblib
 import pandas as pd
 from dotenv import load_dotenv
-import requests
-import time
-import os
+from preprocess import FeatureEngineer
+import streamlit as st
 
-# -------------------------------
-# Configuration
-# -------------------------------
+
 load_dotenv()
-API_BASE_URL = os.getenv("FRAUD_API_URL")
 
-# -------------------------------
-# Streamlit Page Configuration
-# -------------------------------
-st.set_page_config(
-    page_title="Fraud Detection Dashboard",
-    page_icon="💳",
-    layout="centered",
-    initial_sidebar_state="expanded"
-)
+BEST_THRESH = float(os.getenv("BEST_THRESH", "-0.0192"))
+T_LOW = float(os.getenv("T_LOW", "0.30"))
+T_HIGH = float(os.getenv("T_HIGH", "0.85"))
 
-# -------------------------------
-# Styling
-# -------------------------------
-st.markdown("""
-    <style>
-        /* General Body and Font */
-        body {
-            font-family: 'Inter', sans-serif;
-        }
+EXPECTED_COLUMNS = [
+    "timestamp",
+    "type",
+    "amount",
+    "oldbalanceOrg",
+    "avgDailyVolumeSoFar",
+    "avgDailyVolumeBeforeTxn",
+    "amountToAvgVolumeRatio",
+    "isFirstTransaction",
+]
 
-        /* Main Title - Clean Header */
-        .main-title {
-            text-align: left;
-            font-size: 2.2rem;
-            font-weight: 700;
-            padding-bottom: 0.5rem;
-            margin-bottom: 2rem;
-        }
 
-        /* Accent Color for Buttons/Components */
-        :root {
-            --primary-color: #6C2BEE; /* Royal Purple */
-        }
+@st.cache_resource
+def load_models():
+    iso = joblib.load("iso.pkl")
+    xgb = joblib.load("xgb.pkl")
+    with open("feature_order.json") as f:
+        feature_order = json.load(f)
+    return iso, xgb, feature_order
 
-        /* Primary Button Style */
-        .stButton>button {
-            background-color: var(--primary-color);
-            color: white;
-            border-radius: 10px;
-            font-weight: 600;
-            height: 3rem;
-            width: 100%;
-            border: none;
-            transition: background-color 0.3s;
-        }
-        .stButton>button:hover {
-            background-color: #4A00B9; /* Darker on hover */
-        }
 
-        /* Input Fields/Selectbox/NumberInput */
-        .stTextInput>div>div>input, .stNumberInput>div>div>input, .stSelectbox>div>div {
-            border-radius: 10px;
-            border: 1px solid #ccc;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-        
-        /* Containers (Forms, Columns) for a Card Look */
-        section[data-testid="stForm"] {
-            padding: 2rem;
-            border: 1px solid var(--accent-color);
-            border-radius: 15px;
-            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
-        }
-        
-        /* Metric Styling */
-        [data-testid="stMetricValue"] {
-            font-size: 1.8rem;
-            color: var(--primary-color);
-        }
-        
-        /* Sidebar Navigation Focus */
-        .st-emotion-cache-1cypcdb { /* Target the radio button group container */
-            border-radius: 10px;
-            padding: 10px;
-            background-color: #F8F4FF; /* Light background for contrast */
-        }
+iso, xgb, feature_order = load_models()
 
-        /* Dividers for cleaner separation */
-        hr {
-            border-top: 2px solid var(--accent-color);
-        }
 
-    </style>
-""", unsafe_allow_html=True)
+def classify(df):
+    X_iso = df[[c for c in feature_order if c != "score_shifted"]].fillna(0)
+    anomaly = -iso.decision_function(X_iso)
+    df["score_shifted"] = anomaly - BEST_THRESH
 
-st.markdown('<div class="main-title">💳 Fraud Detection System</div>', unsafe_allow_html=True)
-st.caption(f"Connected to API at: **{API_BASE_URL}**")
+    X = df[feature_order].fillna(0)
+    proba = xgb.predict_proba(X)[:, 1]
+    df["Risk Score"] = proba
 
-# -------------------------------
-# Sidebar Navigation
-# -------------------------------
-st.sidebar.header("🔍 Navigation")
-page = st.sidebar.radio("Go to", ["Predict Fraud", "Retrain Model", "Retrain Status"])
+    def decision(p):
+        if p >= T_HIGH:
+            return "❌ BLOCK"
+        if p >= T_LOW:
+            return "🟡 REVIEW"
+        return "✅ ALLOW"
 
-# -------------------------------
-# Predict Fraud Page
-# -------------------------------
-if page == "Predict Fraud":
-    st.header("⚡ Predict Fraudulent Transaction")
-    st.markdown("""
-    Fill in the transaction details below to get an **instant fraud risk assessment**.
-    """)
+    df["Decision"] = df["Risk Score"].apply(decision)
+    return df
 
-    with st.form("predict_form"):
-        # Use columns for a two-column layout in the form
-        col_meta, col_type = st.columns(2)
-        with col_meta:
-            step = st.number_input("⏱ Step (1 step = 1 hour)", min_value=1, help="Represents the time step of the transaction. One step equals one hour.")
-        with col_type:
-            type_ = st.selectbox(
-                "💳 Transaction Type",
-                ["PAYMENT", "TRANSFER", "CASH_OUT", "CASH_IN", "DEBIT"],
-                help="Specifies the type of transaction being made."
-            )
-        amount = st.number_input("💰 Transaction Amount", min_value=0.0, help="The total amount being transferred or withdrawn.")
 
-        st.divider()
-        st.subheader("🧾 Sender (Origin Account)")
-        
-        col_orig_id, col_orig_bal = st.columns(2)
-        with col_orig_id:
-            nameOrig = st.text_input("Sender Account ID", placeholder="C123456789", help="Unique identifier for the sender’s account.")
-        with col_orig_bal:
-            oldbalanceOrg = st.number_input("Sender Balance (Before Transaction)", min_value=0.0, help="The sender’s balance before the transaction.")
-        newbalanceOrig = st.number_input("Sender Balance (After Transaction)", min_value=0.0, help="The sender’s balance after the transaction.")
+# ---------------- STREAMLIT UI ----------------
+st.title("💳 Real-Time Transaction Risk Checker")
 
-        st.divider()
-        st.subheader("💼 Receiver (Destination Account)")
-        
-        col_dest_id, col_dest_bal = st.columns(2)
-        with col_dest_id:
-            nameDest = st.text_input("Receiver Account ID", placeholder="M987654321", help="Unique identifier for the receiver’s account.")
-        with col_dest_bal:
-            oldbalanceDest = st.number_input("Receiver Balance (Before Transaction)", min_value=0.0, help="Receiver’s balance before the transaction.")
-        newbalanceDest = st.number_input("Receiver Balance (After Transaction)", min_value=0.0, help="Receiver’s balance after the transaction.")
+tab1, tab2 = st.tabs(["Single Transaction", "Batch Upload"])
 
-        st.markdown("---") # Custom separator for the submit button
-        submitted = st.form_submit_button("🚀 Predict Fraud Risk")
+# -------- Single Transaction Mode --------
+with tab1:
+    st.subheader("Enter transaction details")
 
-    if submitted:
-        input_data = {
-            "step": step,
-            "type": type_,
-            "amount": amount,
-            "nameOrig": nameOrig,
-            "oldbalanceOrg": oldbalanceOrg,
-            "newbalanceOrig": newbalanceOrig,
-            "nameDest": nameDest,
-            "oldbalanceDest": oldbalanceDest,
-            "newbalanceDest": newbalanceDest,
-        }
+    amount = st.number_input("Amount", min_value=0.0, step=0.01)
+    oldbalance = st.number_input(
+        "Sender Balance Before Transaction", min_value=0.0, step=0.01
+    )
+    avgVol = st.number_input("Avg Daily Volume (Past Days)",
+                             min_value=0.0, step=0.01)
 
-        with st.spinner("Running fraud prediction..."):
-            try:
-                # API call to the /predict/ endpoint
-                res = requests.post(f"{API_BASE_URL}/predict/", json=input_data)
-                
-                if res.status_code == 200:
-                    result = res.json()
-                    st.success("✅ Prediction completed successfully!")
-                    
-                    # Enhanced result display
-                    col1, col2 = st.columns(2)
-                    
-                    # Highlight fraud prediction clearly
-                    prediction_text = "🚨 **YES (Fraudulent)**" if result["prediction"] else "✅ **No (Legitimate)**"
-                    prediction_color = "red" if result["prediction"] else "green"
-                    
-                    col1.markdown(f"**Fraudulent Transaction:** <span style='color:{prediction_color}; font-size: 1.2rem;'>{prediction_text}</span>", unsafe_allow_html=True)
-                    
-                    # Use metric for the probability
-                    col2.metric("Fraud Probability", f"{result['fraud_probability']:.2%}")
-                    
-                else:
-                    st.error(f"❌ Error during API call (Status {res.status_code}): {res.text}")
-            except requests.exceptions.ConnectionError:
-                st.error(f"⚠️ Could not connect to API at `{API_BASE_URL}`. Please ensure the backend server is running.")
-            except Exception as e:
-                st.error(f"⚠️ An unexpected error occurred: {e}")
+    if st.button("Check Risk"):
+        single = pd.DataFrame(
+            [
+                {
+                    "amount": amount,
+                    "oldbalanceOrg": oldbalance,
+                    "avgDailyVolumeSoFar": avgVol,
+                    "avgDailyVolumeBeforeTxn": avgVol,
+                    "amountToAvgVolumeRatio": amount / (avgVol + 1e-6),
+                }
+            ]
+        )
 
-# -------------------------------
-# Retrain Model Page
-# -------------------------------
-elif page == "Retrain Model":
-    st.header("🧠 Retrain Model with New Data")
-    st.info("Upload a new CSV file. The file should contain labeled data for retraining. This process runs asynchronously.")
+        single = FeatureEngineer().transform(single)
+        result = classify(single)
 
-    # ---------------------------------------------------
-    # Download Sample CSV
-    # ---------------------------------------------------
-    st.markdown("### 📄 Need a sample dataset?")
-    st.caption("Download a ready-made CSV with the correct columns and structure for model retraining.")
+        st.markdown(f"### Result: {result['Decision'].iloc[0]}")
 
-    sample_data = pd.DataFrame({
-        "step": [1, 2],
-        "type": ["PAYMENT", "TRANSFER"],
-        "amount": [9839.64, 1864.28],
-        "nameOrig": ["C1231006815", "C1666544295"],
-        "oldbalanceOrg": [170136.0, 21249.0],
-        "newbalanceOrig": [160296.36, 19384.72],
-        "nameDest": ["M1979787155", "M2044282225"],
-        "oldbalanceDest": [0.0, 0.0],
-        "newbalanceDest": [0.0, 0.0],
-        "isFraud": [0, 1]
-    })
+        with st.expander("Advanced Details"):
+            st.write(result)
 
-    csv_bytes = sample_data.to_csv(index=False).encode("utf-8")
-    st.download_button(
-        label="📥 Download Sample CSV",
-        data=csv_bytes,
-        file_name="sample_training_data.csv",
-        mime="text/csv"
+# -------- Batch Upload Mode --------
+with tab2:
+    st.subheader("Upload CSV File of Transactions")
+
+    # ---- Sample CSV Download ----
+    sample_df = pd.DataFrame(
+        [
+            {
+                "timestamp": "2025-10-30 12:00:00",
+                "type": "TRANSFER",
+                "amount": 1500.50,
+                "oldbalanceOrg": 5000.00,
+                "avgDailyVolumeSoFar": 2000.00,
+                "avgDailyVolumeBeforeTxn": 1800.00,
+                "amountToAvgVolumeRatio": 0.75,
+                "isFirstTransaction": False,
+            }
+        ]
     )
 
-    st.markdown("---")
+    st.download_button(
+        "📄 Download Sample CSV",
+        sample_df.to_csv(index=False).encode("utf-8"),
+        file_name="sample_transactions.csv",
+        mime="text/csv",
+    )
 
-    # ---------------------------------------------------
-    # Upload New Training Data
-    # ---------------------------------------------------
-    csv_file = st.file_uploader("Upload Training Data CSV", type=["csv"])
+    file = st.file_uploader("Select CSV File", type="csv")
 
-    if csv_file is not None:
-        if st.button("🚀 Start Retraining"):
-            with st.spinner("Uploading file and starting retraining job..."):
-                try:
-                    files = {"file": (csv_file.name, csv_file, "text/csv")}
-                    res = requests.post(f"{API_BASE_URL}/retrain/", files=files)
-                    
-                    if res.status_code == 202:
-                        task_id = res.json().get("task_id")
-                        st.success("✅ Retraining started successfully!")
-                        st.markdown(f"**📍 Task ID:** `{task_id}`")
-                        st.info("Navigate to 'Retrain Status' to track progress.")
-                        st.session_state["last_task_id"] = task_id
-                    else:
-                        st.error(f"❌ Error during API call (Status {res.status_code}): {res.text}")
-                except requests.exceptions.ConnectionError:
-                    st.error(f"⚠️ Could not connect to API at `{API_BASE_URL}`.")
-                except Exception as e:
-                    st.error(f"Server error: {e}")
+    if file:
+        # --- Keep original data intact ---
+        original_df = pd.read_csv(file)
+        df = original_df.copy()
 
-# -------------------------------
-# Retraining Status Page
-# -------------------------------
-elif page == "Retrain Status":
-    st.header("📊 Check Retraining Status")
+        st.info("📊 Preview of Uploaded Data:")
+        st.dataframe(df.head(), use_container_width=True)
 
-    task_id_default = st.session_state.get("last_task_id", "")
-    task_id = st.text_input("Enter Task ID", value=task_id_default)
-    
-    if "last_task_id" in st.session_state:
-        st.caption(f"Quick check on last submitted task: `{st.session_state['last_task_id']}`")
-
-    if st.button("🔄 Check Status"):
-        if task_id:
-            with st.spinner("Fetching retraining status..."):
-                try:
-                    # API call to the /retrain/status/{task_id} endpoint
-                    res = requests.get(f"{API_BASE_URL}/retrain/status/{task_id}")
-                    
-                    if res.status_code == 200:
-                        data = res.json()
-                        status = data.get("status")
-                        
-                        st.markdown(f"**Current Status:** **`{status}`**")
-                        
-                        if status == "Completed":
-                            st.balloons()
-                            st.success("✅ Model retrained and deployed successfully!")
-                            result = data.get("result", {})
-                            
-                            st.markdown("### Model Training Report")
-                            st.write(f"• **Data Size:** **`{result.get('data_size', 'N/A')}`** samples")
-                            st.write(f"• **Validation F1 Score:** **`{result.get('validation_score', 'N/A'):.4f}`**")
-                            st.write(f"• **New Model Path:** `{result.get('model_path', 'N/A')}`")
-                            
-                        elif status == "Pending" or status == "Running":
-                            st.info("⌛ Retraining is in progress. Please check back later.")
-                            st.progress(data.get("progress", 0.1), text=f"Progress: {data.get('progress', 0.1)*100:.0f}%")
-                            
-                        elif status == "Failed":
-                            st.error("❌ Retraining failed. Check the server logs for details.")
-                            st.json(data)
-                            
-                        else:
-                            st.warning("⚠️ Task status unknown or task not found.")
-
-                    else:
-                        st.error(f"❌ Error during API call (Status {res.status_code}): {res.text}")
-                except requests.exceptions.ConnectionError:
-                    st.error(f"⚠️ Could not connect to API at `{API_BASE_URL}`.")
-                except Exception as e:
-                    st.error(f"Server error: {e}")
+        # Check for missing columns
+        missing_cols = [c for c in EXPECTED_COLUMNS if c not in df.columns]
+        if missing_cols:
+            st.error(f"❌ Missing columns in uploaded file: {missing_cols}")
         else:
-            st.warning("⚠️ Please enter a task ID to check its status.")
+            # --- Transform and classify ---
+            transformed = FeatureEngineer().transform(df)
+            classified = classify(transformed)
+
+            # --- Attach results to original data ---
+            results = original_df.copy()
+            results["Risk Score"] = classified["Risk Score"]
+            results["Decision"] = classified["Decision"]
+
+            st.success("✅ Transactions evaluated!")
+
+            # --- Decision summary ---
+            st.markdown("### Decision Summary")
+            st.write(results["Decision"].value_counts())
+
+            # --- Detailed preview ---
+            st.markdown("### Detailed Results Preview")
+            st.dataframe(results.head(20), use_container_width=True)
+
+            # --- Download full results ---
+            st.download_button(
+                "⬇️ Download Full Results",
+                results.to_csv(index=False).encode("utf-8"),
+                file_name="risk_results.csv",
+                mime="text/csv",
+            )
