@@ -1,95 +1,125 @@
-# 🛡️ Online Transaction Fraud Detection System
+# 🛡️ Real-Time Fraud Detection & Risk Scoring System
 
-A **machine learning–powered fraud detection pipeline** that identifies fraudulent online financial transactions in real time.
+An intelligent, **hybrid anomaly detection and supervised learning system** that evaluates the risk level of financial transactions in real time.
+It combines **unsupervised anomaly detection (Isolation Forest)** and **supervised fraud classification (XGBoost)** to deliver fast, explainable, and high-precision fraud predictions.
 
-This project demonstrates my ability to build a **complete end-to-end ML solution** — from data preprocessing and feature engineering to model training, explainability, and containerized deployment using FastAPI and Celery.
+---
+
+## 🚀 Overview
+
+This project demonstrates a **complete end-to-end machine learning system**, including:
+
+* Real-time fraud risk scoring via **Streamlit dashboard**
+* Dual-layer detection: **Isolation Forest (unsupervised)** + **XGBoost (supervised)**
+* Live model loading via remote URLs (supports large `.pkl` models)
+* Session-based transaction simulation and decision logic
+* Batch CSV evaluation with downloadable results
+* Container-ready deployment for **Render**, **Azure**, or **Docker Compose**
 
 ---
 
 ## 🧰 Tech Stack
 
-* **Backend:** FastAPI, Uvicorn
-* **ML Framework:** XGBoost, scikit-learn, pandas, numpy
-* **Model Explainability:** SHAP
-* **Serialization:** Joblib
-* **Task Queue:** Celery, Redis, Flower
-* **Deployment:** Docker, Docker Compose, Render
-* **Version Control & CI/CD:** Git, GitHub Actions (ready for integration)
+| Category                    | Tools                                   |
+| --------------------------- | --------------------------------------- |
+| **Frontend (Dashboard)**    | Streamlit                               |
+| **Machine Learning**        | XGBoost, IsolationForest (Scikit-learn) |
+| **Feature Engineering**     | Custom pipeline (`FeatureEngineer`)     |
+| **Model Storage & Serving** | Azure Blob Storage / Remote URLs        |
+| **Deployment**              | Docker, Render                          |
+| **Task Queue (optional)**   | Celery, Redis                           |
+| **Monitoring (optional)**   | Flower                                  |
+| **Environment & Config**    | dotenv, joblib, pandas, numpy           |
 
 ---
 
-## 📊 Dataset Overview
+## ⚙️ Workflow & Architecture
 
-The dataset simulates real-world financial transactions with the following key features:
+### 🔹 1. Data Preprocessing
 
-| Feature                            | Description                                         |
-| ---------------------------------- | --------------------------------------------------- |
-| `step`                             | Time step (1 step = 1 hour)                         |
-| `type`                             | Transaction type (TRANSFER, CASH_OUT, etc.)         |
-| `amount`                           | Transaction amount                                  |
-| `nameOrig`, `nameDest`             | Originator and recipient accounts                   |
-| `oldbalanceOrg`, `newbalanceOrig`  | Sender’s balance before and after the transaction   |
-| `oldbalanceDest`, `newbalanceDest` | Receiver’s balance before and after the transaction |
-| `isFraud`                          | Target variable (1 = fraud, 0 = non-fraud)          |
+* Transactional data is standardized and transformed using the `FeatureEngineer` class.
+* Computes ratios and behavioral indicators:
 
-**Engineered features:**
+  * `amountToAvgVolumeRatio`
+  * `isFirstTransaction`
+  * Time-based and account activity features
+* Ensures **no data leakage** between training and prediction.
 
-* `balanceDiffOrig`, `balanceDiffDest` — change in sender/receiver balances
-* `orig_balance_ratio`, `dest_balance_ratio` — relative transaction amounts
-* One-hot encoded transaction types (e.g., `type_CASH_OUT`, `type_TRANSFER`)
+### 🔹 2. Unsupervised Anomaly Detection (Isolation Forest)
 
----
+* Detects unusual transaction behavior patterns.
+* Produces an **anomaly score** (`score_shifted`), adjusted using the optimal learned threshold (`BEST_THRESH`).
 
-## ⚙️ Workflow & Methodology
+### 🔹 3. Supervised Classification (XGBoost)
 
-### 1. **Data Preprocessing**
+* Consumes both raw and anomaly-based features.
+* Produces a **fraud probability score (`Risk Score`)**.
+* Decisions are tiered:
 
-* Cleaned and validated raw transaction data.
-* Engineered ratio-based and difference-based balance features.
-* Encoded categorical features using one-hot encoding.
-* Handled severe class imbalance using **SMOTE** and stratified sampling.
+| Risk Probability | Decision  | Action                        |
+| ---------------- | --------- | ----------------------------- |
+| ≥ `T_HIGH`       | ❌ BLOCK   | Auto-reject transaction       |
+| ≥ `T_LOW`        | 🟡 REVIEW | Flag for manual investigation |
+| < `T_LOW`        | ✅ ALLOW   | Safe to process               |
 
-### 2. **Model Training**
+### 🔹 4. Streamlit UI
 
-* Tested multiple supervised learning algorithms:
-
-  * Random Forest Classifier
-  * **XGBoost Classifier** *(selected for best performance)*
-
-The final XGBoost model was trained to predict `isFraud` and evaluated using metrics optimized for imbalanced datasets.
-
-### 3. **Hyperparameter Tuning**
-
-* Tuned using `RandomizedSearchCV` and stratified cross-validation.
-* Ensured robustness and generalization on unseen data.
-
-### 4. **Explainability with SHAP**
-
-* **Global interpretability:** SHAP summary plots show which features most influence fraud detection.
-* **Local interpretability:** SHAP force and waterfall plots explain *why* individual transactions are flagged.
+* Real-time interface for **single transaction simulation** and **batch risk evaluation**.
+* Displays transaction history per session.
+* Supports download of results as `.csv`.
 
 ---
 
-## ✅ Model Performance
+## 🧠 Model Logic
 
-| Metric                     | Score                                      |
-| -------------------------- | ------------------------------------------ |
-| **ROC-AUC**                | **0.983**                                  |
-| **AUPRC (Avg. Precision)** | **0.8277**                                 |
-| **Precision (fraud)**      | 0.65 – 0.83                                |
-| **Recall (fraud)**         | 0.71 – 0.79                                |
-| **Accuracy**               | ~100% *(not relied upon due to imbalance)* |
+**Hybrid decision rule:**
 
-> Even with an extreme fraud rate (<0.2%), the model achieves high precision-recall balance and excellent separability (ROC-AUC ≈ 0.98).
-> SHAP confirms that **transaction type**, **sender balance**, and **transaction amount** are the most predictive indicators of fraud.
+```python
+if RiskScore >= T_HIGH:
+    Decision = "BLOCK"
+elif RiskScore >= T_LOW:
+    Decision = "REVIEW"
+else:
+    Decision = "ALLOW"
+```
+
+This combines anomaly-derived thresholds (`score_shifted`) with supervised confidence from `xgb.predict_proba`.
 
 ---
 
-## 🧠 Key Insights
+## 📈 Model Performance
 
-* **Accuracy ≠ performance** — metrics like Precision, Recall, AUPRC, and ROC-AUC matter more in fraud detection.
-* **Explainability builds trust** — SHAP enhances transparency for stakeholders.
-* **Behavioral patterns dominate** — balance changes and transaction types carry the strongest fraud signals.
+| Model                               | Precision | Recall   | F1-score | ROC-AUC  |
+| ----------------------------------- | --------- | -------- | -------- | -------- |
+| **Isolation Forest (unsupervised)** | 0.24      | 0.49     | 0.32     | -        |
+| **XGBoost (supervised)**            | **0.64**  | **0.77** | **0.70** | **0.98** |
+
+✅ **High precision and recall balance** even with severe class imbalance.
+✅ XGBoost correctly identifies **>70% of fraudulent cases** while minimizing false positives.
+✅ Isolation Forest provides behavioral context that improves supervised accuracy.
+
+---
+
+## 🧩 Streamlit Application
+
+### 🔹 Features
+
+* **Single Transaction Mode**
+
+  * Simulate user behavior (transfer, cash-out, etc.)
+  * Real-time fraud decision and sender balance update
+  * Session-based customer memory and transaction log
+
+* **Batch Upload Mode**
+
+  * Upload `.csv` of transactions
+  * Automated risk classification with review summary
+  * Download results instantly
+
+* **Model Loading via URLs**
+
+  * Automatically fetches and loads large `.pkl` files (e.g., 1.5 GB) from remote storage.
+  * Cached with `@st.cache_resource` for speed.
 
 ---
 
@@ -98,22 +128,16 @@ The final XGBoost model was trained to predict `isFraud` and evaluated using met
 ```plaintext
 fraud-detection/
 ├── app/
-│   ├── main.py                # FastAPI entrypoint
-│   ├── endpoints.py           # API routes
-│   ├── preprocess.py          # Feature engineering pipeline
-│   ├── worker.py              # Celery configuration
-│   ├── tasks.py               # Model retraining task
-│   ├── model/
-│   │   └── fraud_model_pipeline_v1.pkl
-│   └── __init__.py
-├── logs/
-│   └── celery.log
-├── notebooks/
-│   ├── preprocessing.ipynb
-│   └── models.ipynb
-├── docker-compose.yml
-├── requirements.txt
+│   ├── preprocess.py             # Feature engineering pipeline
+│   ├── data_store.py             # Customer mock database
+│   ├── main.py                   # Streamlit app entry point
+│   └── feature_order.json        # Feature alignment
+├── models/
+│   ├── iso.pkl                   # Isolation Forest model (~1.5 GB compressed)
+│   └── xgb.pkl                   # XGBoost model
+├── .env                          # BEST_THRESH, T_LOW, T_HIGH, model URLs
 ├── Dockerfile
+├── requirements.txt
 ├── README.md
 └── output/
     └── shap_summary.png
@@ -121,181 +145,80 @@ fraud-detection/
 
 ---
 
-## 🕵️‍♂️ Fraud Detection API
+## 🌐 Environment Variables
 
-A production-ready **FastAPI** microservice for real-time fraud prediction and background model retraining.
+| Variable      | Description                        | Example               |
+| ------------- | ---------------------------------- | --------------------- |
+| `BEST_THRESH` | Best anomaly threshold             | `-0.0192`             |
+| `T_LOW`       | Review threshold                   | `0.30`                |
+| `T_HIGH`      | Block threshold                    | `0.85`                |
+| `ISO_URL`     | Remote Isolation Forest `.pkl` URL | `https://.../iso.pkl` |
+| `XGB_URL`     | Remote XGBoost `.pkl` URL          | `https://.../xgb.pkl` |
 
 ---
 
-### 🚀 How to Run Locally
+## 🧪 How to Run
 
-#### **Option 1 – Docker Compose (Recommended)**
+### **Option 1 — Streamlit (local)**
+
+```bash
+pip install -r requirements.txt
+streamlit run app/main.py
+```
+
+Access the dashboard at:
+👉 [http://localhost:8501](http://localhost:8501)
+
+### **Option 2 — Docker (recommended)**
 
 ```bash
 docker-compose up --build
 ```
 
-This starts:
+### **Optional Services**
 
-* FastAPI API service (port **8000**)
-* Redis broker (port **6379**)
-* Celery worker (background task processor)
-* Flower dashboard (port **5555**)
-
-Access:
-
-* **API Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
-* **Flower (Celery dashboard):** [http://localhost:5555](http://localhost:5555)
+* Redis (for background tasks)
+* Celery worker (for model retraining or async scoring)
+* Flower dashboard (task monitoring)
 
 ---
 
-#### **Option 2 – Manual Setup**
+## 🕹️ Example Workflow
 
-1. Start Redis locally:
+### 🔸 Single Transaction
 
-   ```bash
-   redis-server
-   ```
+1. Choose a sender from dropdown.
+2. Enter amount and transaction type.
+3. Click **“Process Transaction”**.
+4. View:
 
-2. Run Celery worker:
+   * Model decision (`ALLOW`, `REVIEW`, `BLOCK`)
+   * Risk probability
+   * Updated sender balance
+   * Logged transaction history
 
-   ```bash
-   celery -A app.worker.celery_app worker --loglevel=info
-   ```
+### 🔸 Batch Upload
 
-3. Start FastAPI app:
-
-   ```bash
-   uvicorn app.main:app --reload
-   ```
-
-4. (Optional) Start Flower:
-
-   ```bash
-   celery -A app.worker.celery_app flower --port=5555
-   ```
+1. Upload a `.csv` of transactions with expected columns.
+2. View summary of classifications.
+3. Download risk results with fraud probabilities.
 
 ---
 
-## 🧩 API Endpoints
+## 🪶 Future Roadmap
 
-### **`POST /predict/` — Predict fraud likelihood**
-
-**Request**
-
-```json
-{
-  "step": 5,
-  "type": "TRANSFER",
-  "amount": 120000.50,
-  "nameOrig": "C12345",
-  "oldbalanceOrg": 50000.00,
-  "newbalanceOrig": 0.00,
-  "nameDest": "M67890",
-  "oldbalanceDest": 0.00,
-  "newbalanceDest": 120000.50
-}
-```
-
-**Response**
-
-```json
-{
-  "prediction": true,
-  "fraud_probability": 0.8882
-}
-```
-
----
-
-### **`POST /retrain/` — Trigger model retraining**
-
-Triggers an asynchronous Celery task to retrain the fraud detection model using new data.
-
-**Request**
-
-```json
-{
-  "new_data_path": "data/new_transactions.csv"
-}
-```
-
-**Response**
-
-```json
-{
-  "task_id": "e8b0f3c0-2b6a-4d2a-87cc-9b234e2c9f4b",
-  "message": "Model retraining started"
-}
-```
-
----
-
-### **`GET /retrain/status/{task_id}` — Check retraining status**
-
-Poll this endpoint to check the status of a retraining task.
-
-**Response**
-
-```json
-{
-  "task_id": "e8b0f3c0-2b6a-4d2a-87cc-9b234e2c9f4b",
-  "status": "SUCCESS",
-  "result": {
-    "status": "Model retrained successfully",
-    "data_size": 10000,
-    "validation_score": 0.9123,
-    "model_path": "app/model/fraud_model_pipeline_20251009_143200.pkl",
-  }
-}
-```
-
----
-
-## 🪶 Celery Logging & Monitoring
-
-* Background tasks (e.g., retraining) are executed via **Celery**.
-* Logs are saved in both the console and `logs/celery.log` with **structured JSON format** (via `python-json-logger`).
-* **Flower** provides real-time task monitoring and inspection.
-
-**Access:**
-
-* Flower dashboard → [http://localhost:5555](http://localhost:5555)
-* Logs file → `logs/celery.log`
-
----
-
-## 🛠️ Future Improvements
-
-* 🔁 **Live stream monitoring** for real-time transaction feeds  
-* 🧩 **Temporal modeling** using RNNs or Transformers  
-* 🤖 **Hybrid fraud detection** (supervised + unsupervised)  
-* 📈 **Model drift monitoring** & automatic retraining  
-* 🕒 **Time-based feature engineering** — Convert the `step` variable (which currently represents hours since dataset start) into interpretable temporal features such as:
-  * **Hour of day** (to capture fraud patterns during specific times)
-  * **Day of week** (to detect behavioral differences between weekdays and weekends)
-  * **Transaction recency** and **activity intervals** (for sequence-aware modeling)
-  
-  These derived features can significantly improve model performance by uncovering *periodic or behavioral fraud patterns* that a static “step” value cannot capture.
-* 🔒 **Centralized model registry** (AWS S3 / Azure Blob Storage)
-
-
----
-
-## 📸 SHAP Summary Plot
-
-![SHAP Summary](./output/shap_summary.png)
-
-> Low sender balances and high-value TRANSFER/CASH_OUT transactions are the strongest indicators of fraud.
+* 🧩 Integrate **live transaction streaming (Kafka / WebSockets)**
+* 🧠 Add more **temporal features**
+* 🤖 Implement **model drift detection & auto-retraining**
+* 🔒 Centralize model storage via **Azure Blob / AWS S3**
+* 📊 Integrate **explainability dashboard (SHAP visualizer)**
 
 ---
 
 ## 👨‍💻 Author
 
 **Oladosu Larinde**
-Lead Software Engineer | Machine Learning Enthusiast
+Software Engineer | ML Engineer 
 
-📫 **Contact**
-
-* [LinkedIn](https://www.linkedin.com/in/olarindeladosu)
-* [Email](mailto:larindeakin@gmail.com)
+📫 **[LinkedIn](https://www.linkedin.com/in/olarindeladosu)**
+📧 **[larindeakin@gmail.com](mailto:larindeakin@gmail.com)**
