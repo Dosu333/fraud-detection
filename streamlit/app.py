@@ -1,11 +1,13 @@
 import os
 import json
 import joblib
+import requests
 import pandas as pd
 from dotenv import load_dotenv
 from preprocess import FeatureEngineer
 from data_store import get_initial_customer_db
 import streamlit as st
+from io import BytesIO
 
 
 load_dotenv()
@@ -13,6 +15,9 @@ load_dotenv()
 BEST_THRESH = float(os.getenv("BEST_THRESH", "-0.0192"))
 T_LOW = float(os.getenv("T_LOW", "0.30"))
 T_HIGH = float(os.getenv("T_HIGH", "0.85"))
+
+ISO_URL = os.getenv("ISO_URL")
+XGB_URL = os.getenv("XGB_URL")
 
 EXPECTED_COLUMNS = [
     "timestamp",
@@ -28,8 +33,12 @@ EXPECTED_COLUMNS = [
 
 @st.cache_resource
 def load_models():
-    iso = joblib.load("iso.pkl")
-    xgb = joblib.load("xgb.pkl")
+    if not XGB_URL or not ISO_URL:
+        raise ValueError("Model URLs are not set in environment variables.")
+    iso_response = requests.get(ISO_URL)
+    xgb_response = requests.get(XGB_URL)
+    iso = joblib.load(BytesIO(iso_response.content))
+    xgb = joblib.load(BytesIO(xgb_response.content))
     with open("feature_order.json") as f:
         feature_order = json.load(f)
     return iso, xgb, feature_order
